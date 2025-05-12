@@ -7,183 +7,168 @@
 #include <limits.h>
 #include <math.h>
 
-//////////////////////////////////////////// BUSCA EM PROFUNDIDADE //////////////////////////////////////
 
-int findPathRec(int **adjMatrix, int numNos, int inicio, int fim, Noh **caminho, int *visitados, int *contadorVisitacao)
+//GRUPO: Luiz Felipe, Amanda Kher e Richer 
+
+// BUSCA EM PROFUNDIDADE --------------------------------------------------------------------------------
+
+int findPathRec(int **matrizAdj, int totalNos, int origem, int destino, Noh **trajeto, int *statusVisita, int *contador)
 {
-    visitados[inicio] = ++(*contadorVisitacao); // Marca a ordem de visita��o do n� atual
+    statusVisita[origem] = ++(*contador);  // Marca o nó como visitado com ordem de visita
+    adicionarNoh(trajeto, origem);         // Adiciona o nó atual ao trajeto
 
-    adicionarNoh(caminho, inicio);
+    if (ehIgual(origem, destino)) return 1; // Caso base: destino alcançado
 
-    if (ehIgual(inicio, fim))
-    {
-        return 1;
-    }
-
-    for (int i = 0; ehMenor(i, numNos); i++)
-    {
-        // Usa visitados para verificar se o n� j� foi visitado
-        if (ehIgual(adjMatrix[inicio][i], 1) && ehIgual(visitados[i], 0))
-        {
-            if (findPathRec(adjMatrix, numNos, i, fim, caminho, visitados, contadorVisitacao))
-            {
-                return 1;
-            }
+    for (int viz = 0; ehMenor(viz, totalNos); viz++) {
+        // Verifica se há conexão e se o vizinho ainda não foi visitado
+        if (ehIgual(matrizAdj[origem][viz], 1) && ehIgual(statusVisita[viz], 0)) {
+            if (findPathRec(matrizAdj, totalNos, viz, destino, trajeto, statusVisita, contador)) return 1;
         }
     }
 
-    removerNoh(caminho, inicio);
+    removerNoh(trajeto, origem); // Backtracking: remove o nó se não for parte da solução
     return 0;
 }
 
-//////////////////////////////////////////// A* //////////////////////////////////////
+// A* -----------------------------------------------------------------------------------------------------
 
-int heuristica(int noAtual, int fim, int largura) {
-    int xAtual = noAtual % largura, yAtual = noAtual / largura;
-    int xFim = fim % largura, yFim = fim / largura;
-    return abs(xAtual - xFim) + abs(yAtual - yFim);
+int calcularHeuristica(int atual, int alvo, int larguraMapa) {
+    // Distância de Manhattan como heurística
+    int xAtual = atual % larguraMapa, yAtual = atual / larguraMapa;
+    int xAlvo = alvo % larguraMapa, yAlvo = alvo / larguraMapa;
+    return abs(xAtual - xAlvo) + abs(yAtual - yAlvo);
 }
 
-int findPathAStar(int** adjMatrix, int numNos, int inicio, int fim, Noh** caminho, int* visitados) {
-    int* distancias = (int*)malloc(numNos * sizeof(int));
-    int* predecessores = (int*)malloc(numNos * sizeof(int));
-    int* estimativas = (int*)malloc(numNos * sizeof(int));
-    int largura = 20;
+int findPathAEstrela(int **matrizAdj, int totalNos, int origem, int destino, Noh **trajeto, int *statusVisita) {
+    int *distancia = (int *)malloc(totalNos * sizeof(int));   // Distância acumulada desde a origem
+    int *anterior = (int *)malloc(totalNos * sizeof(int));    // Armazena o nó anterior no caminho
+    int *estimativa = (int *)malloc(totalNos * sizeof(int));  // Estimativa total (g + h)
+    int larguraMapa = 20; //assume grid 20xN 
 
-    // Inicializa��o
-    for (int i = 0; ehMenor(i, numNos); i++) {
-        distancias[i] = INT_MAX;
-        predecessores[i] = -1;
-        estimativas[i] = INT_MAX;
+    for (int i = 0; ehMenor(i, totalNos); i++) {
+        distancia[i] = INT_MAX;
+        anterior[i] = -1;
+        estimativa[i] = INT_MAX;
     }
-    distancias[inicio] = 0;
-    estimativas[inicio] = heuristica(inicio, fim, largura);
 
-    for (int i = 0; ehMenor(i, numNos - 1); i++) {
-        int atual = -1, minimo = INT_MAX;
+    distancia[origem] = 0;
+    estimativa[origem] = calcularHeuristica(origem, destino, larguraMapa);
 
-        // Encontra o n� com a menor estimativa
-        for (int j = 0; ehMenor(j, numNos); j++) {
-            if (ehIgual(visitados[j], 0) && ehMenor(estimativas[j], minimo)) {
-                minimo = estimativas[j];
-                atual = j;
+    for (int i = 0; ehMenor(i, totalNos - 1); i++) {
+        int menorEst = INT_MAX, noAtual = -1;
+
+        // Seleciona o nó com menor estimativa total que ainda não foi visitado
+        for (int j = 0; ehMenor(j, totalNos); j++) {
+            if (ehIgual(statusVisita[j], 0) && ehMenor(estimativa[j], menorEst)) {
+                menorEst = estimativa[j];
+                noAtual = j;
             }
         }
 
-        if (ehIgual(atual, -1) || ehIgual(atual, fim)) break;
-        visitados[atual] = 1;
+        if (ehIgual(noAtual, -1) || ehIgual(noAtual, destino)) break;
+        statusVisita[noAtual] = 1;
 
-        // Atualiza as dist�ncias e estimativas dos vizinhos
-        for (int vizinho = 0; ehMenor(vizinho, numNos); vizinho++) {
-            if (ehDiferente(adjMatrix[atual][vizinho], 0) && ehIgual(visitados[vizinho], 0)) {
-                int novaDist = distancias[atual] + adjMatrix[atual][vizinho];
-                if (ehMenor(novaDist, distancias[vizinho])) {
-                    distancias[vizinho] = novaDist;
-                    predecessores[vizinho] = atual;
-                    estimativas[vizinho] = distancias[vizinho] + heuristica(vizinho, fim, largura);
+        // Explora os vizinhos do nó atual
+        for (int vizinho = 0; ehMenor(vizinho, totalNos); vizinho++) {
+            if (ehDiferente(matrizAdj[noAtual][vizinho], 0) && ehIgual(statusVisita[vizinho], 0)) {
+                int novaDist = distancia[noAtual] + matrizAdj[noAtual][vizinho];
+                if (ehMenor(novaDist, distancia[vizinho])) {
+                    distancia[vizinho] = novaDist;
+                    anterior[vizinho] = noAtual;
+                    estimativa[vizinho] = novaDist + calcularHeuristica(vizinho, destino, larguraMapa);
                 }
             }
         }
     }
 
-    // Verifica se encontrou o caminho
-    if (ehIgual(distancias[fim], INT_MAX)) {
-        free(distancias);
-        free(predecessores);
-        free(estimativas);
-        return 0; // N�o encontrou o caminho
+    if (ehIgual(distancia[destino], INT_MAX)) {
+        free(distancia);
+        free(anterior);
+        free(estimativa);
+        return 0; // Caminho não encontrado
     }
 
-    // Reconstr�i o caminho
-    int no = fim;
-    while (ehDiferente(no, -1)) {
-        adicionarNoh(caminho, no);
-        no = predecessores[no];
+    // Reconstrói o caminho do destino até a origem
+    int atual = destino;
+    while (ehDiferente(atual, -1)) {
+        adicionarNoh(trajeto, atual);
+        atual = anterior[atual];
     }
 
-    free(distancias);
-    free(predecessores);
-    free(estimativas);
-    return 1; // Encontrou o caminho
+    free(distancia);
+    free(anterior);
+    free(estimativa);
+    return 1;
 }
 
-//////////////////////////////////////////// DIJKSTRA //////////////////////////////////////
+// DIJKSTRA -----------------------------------------------------------------------------------------------------
 
-int findPathDijkstra(int **adjMatrix, int numNos, int inicio, int fim, Noh **caminho, int *visitados, int *contadorVisitacao)
+int findPathDijkstra(int **matrizAdj, int totalNos, int origem, int destino, Noh **trajeto, int *statusVisita, int *contador)
 {
-    int *d = (int *)malloc(numNos * sizeof(int));             // d(z): distâncias
-    int *predecessores = (int *)malloc(numNos * sizeof(int)); // s(z): predecessores
-    int *visitacao = (int *)calloc(numNos, sizeof(int));      // Ordem de visitação dos nós
+    int *dist = (int *)malloc(totalNos * sizeof(int));         // Distâncias mínimas desde a origem
+    int *anterior = (int *)malloc(totalNos * sizeof(int));     // Armazena predecessores
+    int *visitacao = (int *)calloc(totalNos, sizeof(int));     // Marca nós já processados
 
-    for (int i = 0; ehMenor(i, numNos); i++)
-    {
-        d[i] = INT_MAX;
-        predecessores[i] = -1;
-        visitados[i] = 0;
+    for (int i = 0; ehMenor(i, totalNos); i++) {
+        dist[i] = INT_MAX;
+        anterior[i] = -1;
+        statusVisita[i] = 0;
     }
-    d[inicio] = 0;
-    *contadorVisitacao = 0;
 
-    while (1)
-    {
+    dist[origem] = 0;
+    *contador = 0;
 
-        int menorDistancia = INT_MAX;
-        int atual = -1;
+    while (1) {
+        int menor = INT_MAX, atual = -1;
 
-        for (int i = 0; ehMenor(i, numNos); i++)
-        {
-            if (ehIgual(visitados[i], 0) && ehMenor(d[i], menorDistancia))
-            {
-                menorDistancia = d[i];
+        // Seleciona o nó não visitado com menor distância acumulada
+        for (int i = 0; ehMenor(i, totalNos); i++) {
+            if (ehIgual(statusVisita[i], 0) && ehMenor(dist[i], menor)) {
+                menor = dist[i];
                 atual = i;
             }
         }
 
-        if (ehIgual(atual, -1) || ehIgual(atual, fim))
-        {
-            break;
-        }
+        if (ehIgual(atual, -1) || ehIgual(atual, destino)) break;
 
-        visitados[atual] = 1;
-        visitacao[atual] = ++(*contadorVisitacao);
+        statusVisita[atual] = 1;
+        visitacao[atual] = ++(*contador);
 
-        for (int vizinho = 0; ehMenor(vizinho, numNos); vizinho++)
-        {
-            if (ehMaior(adjMatrix[atual][vizinho], 0) && ehIgual(visitados[vizinho], 0))
-            {
-                int novaDistancia = d[atual] + adjMatrix[atual][vizinho];
-                if (ehMenor(novaDistancia, d[vizinho]))
-                {
-                    d[vizinho] = novaDistancia;
-                    predecessores[vizinho] = atual;
+        // Atualiza as distâncias dos vizinhos
+        for (int viz = 0; ehMenor(viz, totalNos); viz++) {
+            if (ehMaior(matrizAdj[atual][viz], 0) && ehIgual(statusVisita[viz], 0)) {
+                int novaDist = dist[atual] + matrizAdj[atual][viz];
+                if (ehMenor(novaDist, dist[viz])) {
+                    dist[viz] = novaDist;
+                    anterior[viz] = atual;
                 }
             }
         }
     }
 
-    int noAtual = fim;
-    while (ehDiferente(noAtual, -1))
-    {
-        adicionarNoh(caminho, noAtual);
-        noAtual = predecessores[noAtual];
+    // Reconstrói o caminho
+    int atual = destino;
+    while (ehDiferente(atual, -1)) {
+        adicionarNoh(trajeto, atual);
+        atual = anterior[atual];
     }
 
-    int distanciaFinal = d[fim];
+    int distanciaFinal = dist[destino];
 
-    free(d);
-    free(predecessores);
+    free(dist);
+    free(anterior);
     free(visitacao);
 
     return ehIgual(distanciaFinal, INT_MAX) ? 0 : 1;
 }
 
+// CHAMADA PRINCIPAL -------------------------------------------------------------------------------------
+
 int findPath(int **adjMatrix, int numNos, int inicio, int fim, Noh **caminho, int *visitados)
 {
-    for (int i = 0; ehMenor(i, numNos); i++)
-    {
+    for (int i = 0; ehMenor(i, numNos); i++) {
         visitados[i] = 0;
     }
 
-    return findPathAStar(adjMatrix, numNos, inicio, fim, caminho, visitados);
+    return findPathAEstrela(adjMatrix, numNos, inicio, fim, caminho, visitados); // Usa A* como padrão
 }
-
